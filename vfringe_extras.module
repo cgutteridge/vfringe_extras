@@ -57,7 +57,7 @@ function vfringe_extras_get_itinerary() {
     if( @$_COOKIE["itinerary"] ) {
       $itinerary["codes"] = preg_split( '/,/', $_COOKIE["itinerary"] );
     } else {
-      $itinerary["codes"] = array("2");
+      $itinerary["codes"] = array();
     }
     // load events
     // code is just Id for now, but could include start time later...
@@ -89,10 +89,57 @@ function vfringe_extras_serve_itinerary() {
   //$events = entity_load('node',array_keys($entities['node']));
   $h = array();
   $list = array();
-  foreach( $itinerary['codes'] as $code ) {
-    
+  $script = array();
+
+  if( count($itinerary['codes']) ) {
+    $h[]= "<p style='display:none' ";
+  } else {
+    $h[]= "<p ";
   }
-  return array( "#markup"=> join( "", $h)."<pre>".htmlspecialchars( print_r( $itinerary,1))."</pre>" );
+  $h []= "class='itinerary_none'>No items in your itinerary. Browse the website and add some.</p>";
+
+  $h []="<table class='itinerary_table'>";
+  foreach( $itinerary['codes'] as $code ) {
+    $event = @$itinerary['events'][$code];
+    if( !$event ) {
+      $time_t = 0;
+    } else {
+      $time_t = strtotime($event->field_date['und'][0]['value']." UTC");
+    }
+    if( @!is_array( $list[$time_t] ) ) { $list[$time_t][]=$code; }
+  }  
+  ksort( $list );
+  global $vf_js_id;
+  foreach( $list as $start_time=>$codes ) {
+    foreach( $codes as $code ) {
+      ++$vf_js_id;
+      $event = @$itinerary['events'][$code];
+      $h []= "<tr id='${vf_js_id}_row'>";    
+      if( $event ) {
+        $h []= "<td>".date("l jS F",$start_time)."</td>";
+        $h []= "<td>".date("H:m",$start_time)."</td>";
+        if( @$event->field_date['und'][0]['value2'] ) {
+          $end_t = strtotime($event->field_date['und'][0]['value2']." UTC");
+          $h []= "<td>".date("H:m",$end_t)."</td>";
+        } else { 
+          $h []= "<td></td>";
+        }
+        $h []= "<td><a href='".url('node/'. $event->nid)."'>".$event->title."</a></td>";
+      } else {
+        $h []= "<td></td>";
+        $h []= "<td></td>";
+        $h []= "<td></td>";
+        $h []= "<td>Error, event missing (may have been erased or altered. Sorry.)</td>";
+      }
+      $h []= "<td><div class='itinerary_button itinerary_remove_button' id='${vf_js_id}_remove'>Remove from itinerary</div>";
+      $h []= "</tr>";
+      $script []= "jQuery( '#${vf_js_id}_remove' ).click(function(){ jQuery( '#${vf_js_id}_row' ).hide(); vfItineraryRemove( '".$code."' ) });\n";
+    }
+  }
+  $h []= "</table>";
+
+  $h []= "<script>jQuery(document).ready(function(){\n".join( "", $script )."});</script>";
+  return array( "#markup"=> join( "", $h) );
 }
 
 function vfringe_extras_serve_map() {

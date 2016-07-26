@@ -1,33 +1,41 @@
+
   function vfItineraryAdd(nid) {
-    var list = vfGetCookie( 'itinerary' ).split( /,/ ); 
+    var list = vfGetItinerary();
+
     list.push( nid ); // code
-    vfSetCookie('itinerary',list.join( ',' ));
+    vfSetItinerary(list);
     vfUpdateItineraryCount(list.length);
   }
 
   function vfItineraryRemove(nid) {
-    var list = vfGetCookie( 'itinerary' ).split( /,/ ); 
+    var list = vfGetItinerary();
     var newlist = [];
     for( var i=0; i<list.length; ++i ) {
       if( list[i] != nid ) { newlist.push( list[i] ); }
     }
-    vfSetCookie('itinerary',newlist.join( ',' ));
+    vfSetItinerary( newlist );
     vfUpdateItineraryCount(newlist.length);
   }
 
   function vfUpdateItineraryCount(n) {
     if( n==0 ) {
       jQuery('.itinerary_display').hide();
+      jQuery('.itinerary_none').show();
     } else if( n==1 ) {
       jQuery('.itinerary_display').show();
       jQuery('.itinerary_count').text( "1 item in itinerary." );
+      jQuery('.itinerary_none').hide();
     } else {
       jQuery('.itinerary_display').show();
       jQuery('.itinerary_count').text( n+" items in itinerary." );
+      jQuery('.itinerary_none').hide();
     } 
   }
 
-  function vfSetCookie(name, value, days=100) {
+  function vfSetItinerary(list) {
+    var name = 'itinerary';
+    var value = list.join( "," );
+    var days = 100; 
     if (days) {
       var date = new Date();
       date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
@@ -38,7 +46,8 @@
     document.cookie = name + "=" + value + expires + "; path=/";
   }
 
-  function vfGetCookie(c_name) {
+  function vfGetItinerary() {
+    var c_name = 'itinerary';
     if (document.cookie.length > 0) {
       c_start = document.cookie.indexOf(c_name + "=");
       if (c_start != -1) {
@@ -47,7 +56,10 @@
         if (c_end == -1) {
           c_end = document.cookie.length;
         }
-        return unescape(document.cookie.substring(c_start, c_end));
+        var v = unescape(document.cookie.substring(c_start, c_end));
+        var list = [];
+        if( v != "" ) { list = v.split( /,/ ); }
+        return list;
       }
     }
     return "";
