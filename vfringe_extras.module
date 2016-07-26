@@ -1,0 +1,149 @@
+<?php
+
+function vfringe_extras_block_info() {
+  // The machine name of the block
+  $blocks['itinerary'] = array(
+    'info'  => t('VFringe Itinerary'),
+    'cache' => DRUPAL_NO_CACHE
+  );
+  return $blocks;
+}
+
+function vfringe_extras_block_view($delta) {
+  $block = array();
+
+  if( $delta == "itinerary" ) {
+    $itinerary = vfringe_extras_get_itinerary();
+    $size = count(($itinerary["codes"]));
+    $style = "";
+    if( $size == 0 ) {
+      $style = "display:none";
+      $it_count = "";
+    } elseif( $size == 1 ) {
+      $it_count = "1 event in your itinerary.";
+    } else {
+      $it_count = "$size events in your itinerary.";
+    }
+      
+    $block['subject'] = t('');
+    $block['content'] = "<div class='itinerary_display' style='$style'><div class='itinerary_count'>$it_count</div><a href='/vfringe-itinerary' class='view_itinerary itinerary_button'>View itinerary</a></div>";
+  }
+  return $block;
+}
+
+function vfringe_extras_menu() {
+  $items = array();
+  
+  // Create the actual OpenData URL (there is no .ttl file, it is a URL that served as plain text
+  $items['vfringe-map'] = array(
+    'page callback' => 'vfringe_extras_serve_map',
+    'access arguments' => array('access content'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['vfringe-itinerary'] = array(
+    'page callback' => 'vfringe_extras_serve_itinerary',
+    'access arguments' => array('access content'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+} 
+
+function vfringe_extras_get_itinerary() {
+  $itinerary = &drupal_static(__FUNCTION__);
+  if( !isset( $itinerary ) ) {
+    $itinerary = array();
+    // get itinerary from cache
+    if( @$_COOKIE["itinerary"] ) {
+      $itinerary["codes"] = preg_split( '/,/', $_COOKIE["itinerary"] );
+    } else {
+      $itinerary["codes"] = array("2");
+    }
+    // load events
+    // code is just Id for now, but could include start time later...
+    $events = entity_load('node',$itinerary["codes"]);
+    $itinerary["events"] = array();
+    foreach( $events as $event ) {
+      $itinerary["events"][$event->nid] = $event;
+    }
+  }
+  return $itinerary;
+}
+  
+
+
+function vfringe_extras_taxonomy_term_single_value($term,$field,$default=null) {
+  $items = field_get_items( "taxonomy_term", $term, $field );
+  $value = trim($items[0]['value']);
+  if( $value ) { return $value; }
+  return $default;
+}
+
+function vfringe_extras_serve_itinerary() {
+  $itinerary = vfringe_extras_get_itinerary();
+//  $query = new EntityFieldQuery();
+ // $entities = $query->entityCondition('entity_type', 'node')
+  //               ->addTag('efq_debug')
+   //              ->entityCondition('bundle','event' )
+    //             ->execute();
+  //$events = entity_load('node',array_keys($entities['node']));
+  $h = array();
+  $list = array();
+  foreach( $itinerary['codes'] as $code ) {
+    
+  }
+  return array( "#markup"=> join( "", $h)."<pre>".htmlspecialchars( print_r( $itinerary,1))."</pre>" );
+}
+
+function vfringe_extras_serve_map() {
+
+  $query = new EntityFieldQuery();
+  $entities = $query->entityCondition('entity_type', 'taxonomy_term')
+                 ->addTag('efq_debug')
+                 ->entityCondition('bundle','event_venus' )
+                 ->execute();
+  $venues = entity_load('taxonomy_term',array_keys($entities['taxonomy_term']));
+
+?>
+<html>
+<style>
+html, body {
+  margin: 0;
+}
+</style>
+  <link rel="stylesheet" href="https://npmcdn.com/leaflet@1.0.0-rc.2/dist/leaflet.css" />
+  <script src="https://npmcdn.com/leaflet@1.0.0-rc.2/dist/leaflet.js"></script>
+<?php
+  global $mapid;
+  $id = "map".(++$mapid); // make sure the js uses a unique ID in case multiple maps on a page
+  print "<div id='$id' style='height: 100%; width: 100%;'></div>\n";
+  print "<script>\n";
+?>
+var map;
+var bounds = L.latLngBounds([]);
+(function(mapid){
+  map = L.map(mapid,{scrollWheelZoom: false});
+  var icon;
+  var marker;
+  L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>', maxZoom: 20 }).addTo(map);
+<?
+  print "}('$id'));\n";
+  foreach( $venues as $venue ) {
+    $lat_long = vfringe_extras_taxonomy_term_single_value($venue,'field_lat_long');
+    $icon_url = vfringe_extras_taxonomy_term_single_value($venue,'field_icon_url','http://data.southampton.ac.uk/images/numbericon.png?n=X');
+    $icon_size = vfringe_extras_taxonomy_term_single_value($venue,'field_icon_size','32,37');
+    $icon_anchor = vfringe_extras_taxonomy_term_single_value($venue,'field_icon_anchor','16,37');
+
+    if( !$lat_long ) { continue; }
+?>
+  (function(lat_long,icon_url,icon_size,icon_anchor){
+    icon = L.icon( { iconUrl: icon_url, iconSize: icon_size, iconAnchor: icon_anchor } );
+    marker = L.marker(lat_long,{ icon: icon } ).addTo(map);
+    bounds.extend( lat_long );
+<?php 
+    print "}([$lat_long],'$icon_url',[$icon_size],[$icon_anchor]));\n";
+  }
+  print "map.fitBounds( bounds );\n";
+  print "</script>\n";
+  print "</html>\n";
+}
