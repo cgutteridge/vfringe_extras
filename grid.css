@@ -1,0 +1,10 @@
+
+table.vf_grid th {
+  background-color: #ccc;
+j}
+table.vf_grid {
+  border-collapse: collapse;
+}
+table.vf_grid th, table.vf_grid td {
+  border: solid 1px #333;
+}

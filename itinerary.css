@@ -1,10 +1,10 @@
 
-.itinerary_table td {
+.vf_itinerary_table td {
   padding: 4px;
   border: solid 1px black;
 }
   
-.itinerary_button { 
+.vf_itinerary_button { 
   text-decoration: none;
   border: 3px solid black;
   background-color: white;
@@ -13,13 +13,13 @@
   padding: 3px 10px;
   cursor: pointer;
 }
-.itinerary_button:hover { 
+.vf_itinerary_button:hover { 
   background-color: #ccc;
 }
-.itinerary_remove_button:hover {
+.vf_itinerary_remove_button:hover {
   background-color: #fcc;
 }
-.itinerary_add_button:hover {
+.vf_itinerary_add_button:hover {
   background-color: #cfc;
 }
 

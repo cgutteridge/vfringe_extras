@@ -1,0 +1,12 @@
+
+TODO:
+
+Limit grid by day
+Show clashes on event template
+Show clashes on itinerary page
+Show clashes on grid
+Add popups to map
+Add a now/next
+Filter itinery button based on "itinerary" flag
+Improve design for, like, everything
+Offer to order venues in grid

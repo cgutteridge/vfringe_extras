@@ -1,34 +1,16 @@
 <?php
 
+require_once( "itinerary.php" );
+require_once( "map.php" );
+require_once( "grid.php" );
+
 function vfringe_extras_block_info() {
   // The machine name of the block
-  $blocks['itinerary'] = array(
+  $blocks[''] = array(
     'info'  => t('VFringe Itinerary'),
     'cache' => DRUPAL_NO_CACHE
   );
   return $blocks;
-}
-
-function vfringe_extras_block_view($delta) {
-  $block = array();
-
-  if( $delta == "itinerary" ) {
-    $itinerary = vfringe_extras_get_itinerary();
-    $size = count(($itinerary["codes"]));
-    $style = "";
-    if( $size == 0 ) {
-      $style = "display:none";
-      $it_count = "";
-    } elseif( $size == 1 ) {
-      $it_count = "1 event in your itinerary.";
-    } else {
-      $it_count = "$size events in your itinerary.";
-    }
-      
-    $block['subject'] = t('');
-    $block['content'] = "<div class='itinerary_display' style='$style'><div class='itinerary_count'>$it_count</div><a href='/vfringe-itinerary' class='view_itinerary itinerary_button'>View itinerary</a></div>";
-  }
-  return $block;
 }
 
 function vfringe_extras_menu() {
@@ -54,28 +36,15 @@ function vfringe_extras_menu() {
   return $items;
 } 
 
-function vfringe_extras_get_itinerary() {
-  $itinerary = &drupal_static(__FUNCTION__);
-  if( !isset( $itinerary ) ) {
-    $itinerary = array();
-    // get itinerary from cache
-    if( @$_COOKIE["itinerary"] ) {
-      $itinerary["codes"] = preg_split( '/,/', $_COOKIE["itinerary"] );
-    } else {
-      $itinerary["codes"] = array();
-    }
-    // load events
-    // code is just Id for now, but could include start time later...
-    $events = entity_load('node',$itinerary["codes"]);
-    $itinerary["events"] = array();
-    foreach( $events as $event ) {
-      $itinerary["events"][$event->nid] = $event;
-    }
-  }
-  return $itinerary;
-}
-  
+function vfringe_extras_block_view($delta) {
+  $block = array();
 
+  if( $delta == "itinerary" ) {
+    return vfringe_extras_block_view_itinerary();
+  }
+
+  return $block;
+}
 
 function vfringe_extras_taxonomy_term_single_value($term,$field,$default=null) {
   $items = field_get_items( "taxonomy_term", $term, $field );
@@ -84,139 +53,12 @@ function vfringe_extras_taxonomy_term_single_value($term,$field,$default=null) {
   return $default;
 }
 
-function vfringe_extras_serve_itinerary() {
-  $itinerary = vfringe_extras_get_itinerary();
-  $venues= vfringe_extras_load_venues();
-
-  $h = array();
-  $list = array();
-  $script = array();
-
-  if( count($itinerary['codes']) ) {
-    $h[]= "<p style='display:none' ";
-  } else {
-    $h[]= "<p ";
-  }
-  $h []= "class='itinerary_none'>No items in your itinerary. Browse the website and add some.</p>";
-
-  $h []="<table class='itinerary_table'>";
-
-  $h []="<tr>";
-  $h []="<th>Date</th>";
-  $h []="<th>Start</th>";
-  $h []="<th>End</th>";
-  $h []="<th>Event</th>";
-  $h []="<th>Venue</th>";
-  $h []="<th>Actions</th>";
-  $h []="</tr>";
-
-  foreach( $itinerary['codes'] as $code ) {
-    $event = @$itinerary['events'][$code];
-    if( !$event ) {
-      $time_t = 0;
-    } else {
-      $time_t = strtotime($event->field_date['und'][0]['value']." UTC");
-    }
-    if( @!is_array( $list[$time_t] ) ) { $list[$time_t][]=$code; }
-  }  
-  ksort( $list );
-  global $vf_js_id;
-  foreach( $list as $start_time=>$codes ) {
-    foreach( $codes as $code ) {
-      ++$vf_js_id;
-      $event = @$itinerary['events'][$code];
-      $h []= "<tr id='${vf_js_id}_row'>";    
-      if( $event ) {
-        $h []= "<td>".date("l jS F",$start_time)."</td>";
-        $h []= "<td>".date("H:m",$start_time)."</td>";
-        if( @$event->field_date['und'][0]['value2'] ) {
-          $end_t = strtotime($event->field_date['und'][0]['value2']." UTC");
-          $h []= "<td>".date("H:m",$end_t)."</td>";
-        } else { 
-          $h []= "<td></td>";
-        }
-
-        $h []= "<td><a href='".url('node/'. $event->nid)."'>".$event->title."</a></td>";
-        $venue = $venues[$event->field_venue['und'][0]['tid']];
-        $h []= "<td><a href='".url('taxonomy/term/'. $venue->tid)."'>".$venue->name."</a></td>";
-  
-      } else {
-        $h []= "<td></td>";
-        $h []= "<td></td>";
-        $h []= "<td></td>";
-        $h []= "<td></td>";
-        $h []= "<td>Error, event missing (may have been erased or altered. Sorry.)</td>";
-      }
-      $h []= "<td><div class='itinerary_button itinerary_remove_button' id='${vf_js_id}_remove'>Remove from itinerary</div>";
-      $h []= "</tr>";
-      $script []= "jQuery( '#${vf_js_id}_remove' ).click(function(){ jQuery( '#${vf_js_id}_row' ).hide(); vfItineraryRemove( '".$code."' ) });\n";
-    }
-  }
-  $h []= "</table>";
-
-  $h []= "<script>jQuery(document).ready(function(){\n".join( "", $script )."});</script>";
-  return array( "#markup"=> join( "", $h) );
-}
-
+// used to make debugging queries easier
 function vfringe_extras_query_alter($query) {
   if ($query->hasTag('efq_debug')) {
 //    dpm((string)$query);
   }
 }
-
-function vfringe_extras_serve_grid() {
-  $query = new EntityFieldQuery();
-  $entities = $query->entityCondition('entity_type', 'node')
-                 ->addTag('efq_debug')
-                 ->entityCondition('bundle','event' )
-                 ->execute();
-  $events = entity_load('node',array_keys($entities['node']));
-  $times = array();
-  foreach( $events as $event ) {
-    print "\n\n\n";
-    $dates = array( strtotime($event->field_date["und"][0]["value"]) );
-    # if value2 not set, add an hour to the start date I guess? TODO
-    $dates[]= strtotime($event->field_date["und"][0]["value2"]);
-    # trim to start/end time of window TODO
-    $times[$dates[0]] = true;
-    $times[$dates[1]] = true;
-  }
-  ksort($times);
-  $times = array_keys( $times );
-  $timeslots = array();
-  $timemap = array();
-  for($i=0;$i<sizeof($times);++$i) {
-    if( $i<sizeof($times)-1 ) {
-      # the last time isn't a timeslot but it still has an index
-      $timeslots []= array( "start"=>$times[$i], "end"=>$times[$i+1] );
-    }
-    $timemap[ $times[$i] ] = $i;
-  }
-  
-  $grid = array(); # venue=>list of columns for venu
-  foreach( $events as $event ) {
-     $start = strtotime($event->field_date["und"][0]["value"]) ;
-     $end = strtotime($event->field_date["und"][0]["value2"]) ;
-     $start_i = $timemap[$start];
-     $end_i = $timemap[$end];
-     print "<hr>";
-     print "<h1>$start_i,$end_i</h1>";
-     print_r( $event );
-  }
-  print_r( $timeslots );
-}
-
-#   [field_date] => Array
-#            [und] => Array
-#                    [0] => Array
-#                            [value] => 2016-07-20 22:00:00
-#                            [value2] => 2016-07-21 03:00:00
-#                            [timezone] => Europe/London
-#                            [timezone_db] => UTC
-#                            [date_type] => datetime
-
-
-
 
 
 
@@ -233,6 +75,7 @@ function vfringe_extras_load_pois() {
   }
   return $pois;
 }
+
 function vfringe_extras_load_venues() {
   
   $venues = &drupal_static(__FUNCTION__);
@@ -247,55 +90,3 @@ function vfringe_extras_load_venues() {
   return $venues;
 }
 
-function vfringe_extras_serve_map() {
-  $venues= vfringe_extras_load_venues();
-  $pois= vfringe_extras_load_pois();
-  $places = array_merge( $venues, $pois);
-?>
-<html>
-<style>
-html, body {
-  margin: 0;
-}
-</style>
-  <link rel="stylesheet" href="https://npmcdn.com/leaflet@1.0.0-rc.2/dist/leaflet.css" />
-  <script src="https://npmcdn.com/leaflet@1.0.0-rc.2/dist/leaflet.js"></script>
-<?php
-  global $mapid;
-  $id = "map".(++$mapid); // make sure the js uses a unique ID in case multiple maps on a page
-  print "<div id='$id' style='height: 100%; width: 100%;'></div>\n";
-  print "<script>\n";
-?>
-var map;
-var bounds = L.latLngBounds([]);
-(function(mapid){
-  map = L.map(mapid,{scrollWheelZoom: false});
-  var icon;
-  var marker;
-  L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>', maxZoom: 20 }).addTo(map);
-<?
-  print "}('$id'));\n";
-
-
-  foreach( $places as $place ) {
-    $lat_long = vfringe_extras_taxonomy_term_single_value($place,'field_lat_long');
-    $icon_url = vfringe_extras_taxonomy_term_single_value($place,'field_icon_url','http://data.southampton.ac.uk/images/numbericon.png?n=X');
-    $icon_size = vfringe_extras_taxonomy_term_single_value($place,'field_icon_size','32,37');
-    $icon_anchor = vfringe_extras_taxonomy_term_single_value($place,'field_icon_anchor','16,37');
-
-    if( !$lat_long ) { continue; }
-?>
-  (function(lat_long,icon_url,icon_size,icon_anchor){
-    icon = L.icon( { iconUrl: icon_url, iconSize: icon_size, iconAnchor: icon_anchor } );
-    marker = L.marker(lat_long,{ icon: icon } ).addTo(map);
-    bounds.extend( lat_long );
-<?php 
-    print "}([$lat_long],'$icon_url',[$icon_size],[$icon_anchor]));\n";
-  }
-
-
-
-  print "map.fitBounds( bounds );\n";
-  print "</script>\n";
-  print "</html>\n";
-}
