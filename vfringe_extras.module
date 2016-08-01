@@ -35,6 +35,11 @@ function vfringe_extras_menu() {
   $items = array();
   
   // Create the actual OpenData URL (there is no .ttl file, it is a URL that served as plain text
+  $items['vfringe-grid'] = array(
+    'page callback' => 'vfringe_extras_serve_grid',
+    'access arguments' => array('access content'),
+    'type' => MENU_NORMAL_ITEM,
+  );
   $items['vfringe-map'] = array(
     'page callback' => 'vfringe_extras_serve_map',
     'access arguments' => array('access content'),
@@ -81,12 +86,8 @@ function vfringe_extras_taxonomy_term_single_value($term,$field,$default=null) {
 
 function vfringe_extras_serve_itinerary() {
   $itinerary = vfringe_extras_get_itinerary();
-//  $query = new EntityFieldQuery();
- // $entities = $query->entityCondition('entity_type', 'node')
-  //               ->addTag('efq_debug')
-   //              ->entityCondition('bundle','event' )
-    //             ->execute();
-  //$events = entity_load('node',array_keys($entities['node']));
+  $venues= vfringe_extras_load_venues();
+
   $h = array();
   $list = array();
   $script = array();
@@ -99,6 +100,16 @@ function vfringe_extras_serve_itinerary() {
   $h []= "class='itinerary_none'>No items in your itinerary. Browse the website and add some.</p>";
 
   $h []="<table class='itinerary_table'>";
+
+  $h []="<tr>";
+  $h []="<th>Date</th>";
+  $h []="<th>Start</th>";
+  $h []="<th>End</th>";
+  $h []="<th>Event</th>";
+  $h []="<th>Venue</th>";
+  $h []="<th>Actions</th>";
+  $h []="</tr>";
+
   foreach( $itinerary['codes'] as $code ) {
     $event = @$itinerary['events'][$code];
     if( !$event ) {
@@ -124,8 +135,13 @@ function vfringe_extras_serve_itinerary() {
         } else { 
           $h []= "<td></td>";
         }
+
         $h []= "<td><a href='".url('node/'. $event->nid)."'>".$event->title."</a></td>";
+        $venue = $venues[$event->field_venue['und'][0]['tid']];
+        $h []= "<td><a href='".url('taxonomy/term/'. $venue->tid)."'>".$venue->name."</a></td>";
+  
       } else {
+        $h []= "<td></td>";
         $h []= "<td></td>";
         $h []= "<td></td>";
         $h []= "<td></td>";
@@ -142,15 +158,99 @@ function vfringe_extras_serve_itinerary() {
   return array( "#markup"=> join( "", $h) );
 }
 
-function vfringe_extras_serve_map() {
+function vfringe_extras_query_alter($query) {
+  if ($query->hasTag('efq_debug')) {
+//    dpm((string)$query);
+  }
+}
 
+function vfringe_extras_serve_grid() {
   $query = new EntityFieldQuery();
-  $entities = $query->entityCondition('entity_type', 'taxonomy_term')
+  $entities = $query->entityCondition('entity_type', 'node')
                  ->addTag('efq_debug')
-                 ->entityCondition('bundle','event_venus' )
+                 ->entityCondition('bundle','event' )
                  ->execute();
-  $venues = entity_load('taxonomy_term',array_keys($entities['taxonomy_term']));
+  $events = entity_load('node',array_keys($entities['node']));
+  $times = array();
+  foreach( $events as $event ) {
+    print "\n\n\n";
+    $dates = array( strtotime($event->field_date["und"][0]["value"]) );
+    # if value2 not set, add an hour to the start date I guess? TODO
+    $dates[]= strtotime($event->field_date["und"][0]["value2"]);
+    # trim to start/end time of window TODO
+    $times[$dates[0]] = true;
+    $times[$dates[1]] = true;
+  }
+  ksort($times);
+  $times = array_keys( $times );
+  $timeslots = array();
+  $timemap = array();
+  for($i=0;$i<sizeof($times);++$i) {
+    if( $i<sizeof($times)-1 ) {
+      # the last time isn't a timeslot but it still has an index
+      $timeslots []= array( "start"=>$times[$i], "end"=>$times[$i+1] );
+    }
+    $timemap[ $times[$i] ] = $i;
+  }
+  
+  $grid = array(); # venue=>list of columns for venu
+  foreach( $events as $event ) {
+     $start = strtotime($event->field_date["und"][0]["value"]) ;
+     $end = strtotime($event->field_date["und"][0]["value2"]) ;
+     $start_i = $timemap[$start];
+     $end_i = $timemap[$end];
+     print "<hr>";
+     print "<h1>$start_i,$end_i</h1>";
+     print_r( $event );
+  }
+  print_r( $timeslots );
+}
 
+#   [field_date] => Array
+#            [und] => Array
+#                    [0] => Array
+#                            [value] => 2016-07-20 22:00:00
+#                            [value2] => 2016-07-21 03:00:00
+#                            [timezone] => Europe/London
+#                            [timezone_db] => UTC
+#                            [date_type] => datetime
+
+
+
+
+
+
+function vfringe_extras_load_pois() {
+  
+  $pois = &drupal_static(__FUNCTION__);
+  if( !$pois ) {
+    $query = new EntityFieldQuery();
+    $entities = $query->entityCondition('entity_type', 'taxonomy_term')
+                   ->addTag('efq_debug')
+                   ->entityCondition('bundle','points_of_interest' )
+                   ->execute();
+    $pois = entity_load('taxonomy_term',array_keys($entities['taxonomy_term']));
+  }
+  return $pois;
+}
+function vfringe_extras_load_venues() {
+  
+  $venues = &drupal_static(__FUNCTION__);
+  if( !$venues ) {
+    $query = new EntityFieldQuery();
+    $entities = $query->entityCondition('entity_type', 'taxonomy_term')
+                   ->addTag('efq_debug')
+                   ->entityCondition('bundle','event_venues' )
+                   ->execute();
+    $venues = entity_load('taxonomy_term',array_keys($entities['taxonomy_term']));
+  }
+  return $venues;
+}
+
+function vfringe_extras_serve_map() {
+  $venues= vfringe_extras_load_venues();
+  $pois= vfringe_extras_load_pois();
+  $places = array_merge( $venues, $pois);
 ?>
 <html>
 <style>
@@ -175,11 +275,13 @@ var bounds = L.latLngBounds([]);
   L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>', maxZoom: 20 }).addTo(map);
 <?
   print "}('$id'));\n";
-  foreach( $venues as $venue ) {
-    $lat_long = vfringe_extras_taxonomy_term_single_value($venue,'field_lat_long');
-    $icon_url = vfringe_extras_taxonomy_term_single_value($venue,'field_icon_url','http://data.southampton.ac.uk/images/numbericon.png?n=X');
-    $icon_size = vfringe_extras_taxonomy_term_single_value($venue,'field_icon_size','32,37');
-    $icon_anchor = vfringe_extras_taxonomy_term_single_value($venue,'field_icon_anchor','16,37');
+
+
+  foreach( $places as $place ) {
+    $lat_long = vfringe_extras_taxonomy_term_single_value($place,'field_lat_long');
+    $icon_url = vfringe_extras_taxonomy_term_single_value($place,'field_icon_url','http://data.southampton.ac.uk/images/numbericon.png?n=X');
+    $icon_size = vfringe_extras_taxonomy_term_single_value($place,'field_icon_size','32,37');
+    $icon_anchor = vfringe_extras_taxonomy_term_single_value($place,'field_icon_anchor','16,37');
 
     if( !$lat_long ) { continue; }
 ?>
@@ -190,6 +292,9 @@ var bounds = L.latLngBounds([]);
 <?php 
     print "}([$lat_long],'$icon_url',[$icon_size],[$icon_anchor]));\n";
   }
+
+
+
   print "map.fitBounds( bounds );\n";
   print "</script>\n";
   print "</html>\n";
