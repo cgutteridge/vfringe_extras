@@ -7,4 +7,12 @@ table.vf_grid {
 }
 table.vf_grid th, table.vf_grid td {
   border: solid 1px #333;
+  padding: 0.5em;
+  vertical-align: top;
+}
+.vf_grid_freecell { 
+  background-color: #eee;
+}
+.vf_grid_event { 
+  background-color: #ffe;
 }

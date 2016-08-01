@@ -10,6 +10,9 @@ function vfringe_extras_serve_grid() {
   $entities = $query->entityCondition('entity_type', 'node')
                  ->addTag('efq_debug')
                  ->entityCondition('bundle','event' )
+                 ->propertyCondition( 'status', 1 )
+                 ->fieldCondition( 'field_event_classification', 'value', array( 'vFringe','Festival' ) ,"IN" )
+                 ->fieldCondition('field_date','value','2016','>' )
                  ->execute();
   $events = entity_load('node',array_keys($entities['node']));
 
