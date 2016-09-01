@@ -11,8 +11,8 @@ html, body {
   margin: 0;
 }
 </style>
-  <link rel="stylesheet" href="https://npmcdn.com/leaflet@1.0.0-rc.2/dist/leaflet.css" />
-  <script src="https://npmcdn.com/leaflet@1.0.0-rc.2/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.0-rc.2/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.0.0-rc.2/dist/leaflet.js"></script>
 <?php
   global $mapid;
   $id = "map".(++$mapid); // make sure the js uses a unique ID in case multiple maps on a page
